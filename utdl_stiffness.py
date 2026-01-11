@@ -35,9 +35,16 @@ def determine_mode(row):
     elem = row['Element']
     struct = row['Structure']
     
-    # --- 1. NON-SOLIDS (n=0) ---
-    if elem in ['He', 'Ne', 'Ar', 'Kr', 'Xe', 'Rn', 'Br', 'I', 'Cl', 'F']:
-        return 0.01 # Effectively zero
+    # --- 1. FALSE SOLIDS / MOLECULAR (n=0.01) ---
+    # These are "Frozen Fluids" held by Van der Waals forces.
+    # We include Hydrogen and Molecular Solids (like CF4) if they appear in the data.
+    molecular_list = [
+        'H', 'He', 'Ne', 'Ar', 'Kr', 'Xe', 'Rn',  # Noble Gases
+        'F', 'Cl', 'Br', 'I', 'N', 'O',           # Diatomics
+        'H2', 'CF4', 'CH4', 'N2', 'O2'            # Explicit Molecules
+    ]
+    if elem in molecular_list:
+        return 0.01 # Effectively zero stiffness (Dual-Scale Mode)
         
     # --- 2. HYPER-RESONANT METALS (n=10 to 13) ---
     if elem == 'Os': return 13  # Prime Density Peak
@@ -106,10 +113,13 @@ df['Error_pct'] = ((df['Y_pred'] - df['Y_obs']) / df['Y_obs']) * 100
 col1, col2 = st.columns([2, 1])
 
 with col1:
+    # Plotly Scatter Plot
     fig = px.scatter(df, x="Y_obs", y="Y_pred", color="n_mode", 
                      hover_data=["Element", "Structure"], size="d_bond",
                      title="UTDL Predicted vs Observed (Diagonal = Perfect)")
-    fig.add_shape(type="line", x0=0, y0=0, x1=1300, y1=1300, line=dict(dash='dash', color='grey'))
+    # Add diagonal reference line
+    fig.add_shape(type="line", x0=0, y0=0, x1=max(df['Y_obs'])*1.1, y1=max(df['Y_obs'])*1.1, 
+                  line=dict(dash='dash', color='grey'))
     st.plotly_chart(fig, use_container_width=True)
 
 with col2:
@@ -121,7 +131,7 @@ with col2:
     st.metric("UTDL Predicted", f"{row['Y_pred']:.2f} GPa", delta=f"{row['Error_pct']:.2f}%")
     st.write(f"**Mode:** n={row['n_mode']}")
     
-    if abs(row['Error_pct']) < 15.0:
+    if abs(row['Error_pct']) < 20.0:
         st.balloons()
 
 # Table
