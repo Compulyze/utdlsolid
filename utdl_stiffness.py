@@ -121,7 +121,7 @@ with col2:
     st.metric("UTDL Predicted", f"{row['Y_pred']:.2f} GPa", delta=f"{row['Error_pct']:.2f}%")
     st.write(f"**Mode:** n={row['n_mode']}")
     
-    if abs(row['Error_pct']) < 1.0:
+    if abs(row['Error_pct']) < 15.0:
         st.balloons()
 
 # Table
