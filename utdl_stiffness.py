@@ -76,33 +76,52 @@ def determine_mode(row):
     # Default Planar Mode (Copper, Aluminum, Gold, Silver)
     return 2
 
-# --- 3. DATA LOADER ---
+# --- 3. DATA LOADER & CALCULATION (Reordered for Dashboard) ---
 st.set_page_config(page_title="UTDL Stiffness Calculator", layout="wide")
 
-st.title("UTDL Geometric Stiffness Engine")
-st.markdown(f"**Planck Pressure ($P_p$):** `{Pp:.4e} Pa` | **Theory:** $Y \\propto P_p \\cdot (L_p/d)^4 \\cdot n/135$")
-
-# Load Data
+# 1. Load Data
 try:
     if os.path.exists('materials_data.csv'):
         df = pd.read_csv('materials_data.csv')
-        st.success("Loaded external `materials_data.csv`")
     else:
         st.warning("`materials_data.csv` not found. Using demo data.")
-        # Fallback Demo Data
         data_raw = [
             {"Element": "Diamond", "Structure": "Diamond", "d_bond": 1.544, "Y_obs": 1220.0},
             {"Element": "Tungsten", "Structure": "BCC", "d_bond": 2.741, "Y_obs": 411.0},
-            {"Element": "Chromium", "Structure": "BCC", "d_bond": 2.498, "Y_obs": 279.0},
-            {"Element": "Iron", "Structure": "BCC", "d_bond": 2.482, "Y_obs": 211.0},
+            {"Element": "Silicon", "Structure": "Diamond", "d_bond": 2.351, "Y_obs": 165.0},
             {"Element": "Copper", "Structure": "FCC", "d_bond": 2.556, "Y_obs": 110.0},
             {"Element": "Aluminum", "Structure": "FCC", "d_bond": 2.863, "Y_obs": 70.0},
-            {"Element": "Silicon", "Structure": "Diamond", "d_bond": 2.351, "Y_obs": 165.0},
         ]
         df = pd.DataFrame(data_raw)
 except Exception as e:
     st.error(f"Error loading data: {e}")
     st.stop()
+
+# 2. Run Physics Engine
+df['n_mode'] = df.apply(determine_mode, axis=1)
+df['Y_pred'] = df.apply(lambda row: calculate_utdl_stiffness(row['d_bond'], row['n_mode']), axis=1)
+df['Error_pct'] = ((df['Y_pred'] - df['Y_obs']) / df['Y_obs']) * 100
+
+# 3. Calculate Dashboard Metrics (Absolute Error)
+mean_err = df['Error_pct'].abs().mean()
+median_err = df['Error_pct'].abs().median()
+
+# --- 4. DASHBOARD & HEADER ---
+col_head, col_dash = st.columns([3, 1])
+
+with col_head:
+    st.title("UTDL Geometric Stiffness Engine")
+    # The Full Correct Math
+    st.latex(r"Y_{pred} = \left[ \frac{P_p}{45} \left( \frac{L_p}{d} \right)^4 \right] \cdot \frac{n}{3}")
+    st.caption(f"Planck Pressure ($P_p$): {Pp:.4e} Pa | Bond Length ($d$) | Harmonic Mode ($n$)")
+
+with col_dash:
+    st.markdown("### Global Accuracy")
+    c1, c2 = st.columns(2)
+    c1.metric("Mean Error", f"{mean_err:.1f}%")
+    c2.metric("Median Error", f"{median_err:.1f}%")
+
+st.divider()
 
 # --- 4. CALCULATION LOOP ---
 df['n_mode'] = df.apply(determine_mode, axis=1)
